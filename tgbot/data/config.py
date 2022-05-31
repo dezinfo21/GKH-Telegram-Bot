@@ -4,14 +4,6 @@ from environs import Env
 
 
 @dataclass
-class DbConfig:
-    host: str
-    password: str
-    user: str
-    database: str
-
-
-@dataclass
 class TgBot:
     token: str
     admin_ids: list[int]
@@ -19,14 +11,20 @@ class TgBot:
 
 
 @dataclass
+class Channels:
+    support: int
+
+
+@dataclass
 class Miscellaneous:
-    other_params: str = None
+    debug: bool
+    default_lang: str
 
 
 @dataclass
 class Config:
     tg_bot: TgBot
-    db: DbConfig
+    channels: Channels
     misc: Miscellaneous
 
 
@@ -40,11 +38,11 @@ def load_config(path: str = None):
             admin_ids=list(map(int, env.list("ADMINS"))),
             use_redis=env.bool("USE_REDIS"),
         ),
-        db=DbConfig(
-            host=env.str('DB_HOST'),
-            password=env.str('DB_PASS'),
-            user=env.str('DB_USER'),
-            database=env.str('DB_NAME')
+        channels=Channels(
+            support=env.int("SUPPORT_CHANNEL_ID")
         ),
-        misc=Miscellaneous()
+        misc=Miscellaneous(
+            debug=env.bool("DEBUG"),
+            default_lang=env.str("DEFAULT_LANG")
+        )
     )

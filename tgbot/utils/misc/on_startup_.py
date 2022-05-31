@@ -1,0 +1,48 @@
+""" On startup module """
+import asyncio
+import logging
+from contextlib import suppress
+
+from aiogram import Dispatcher, types
+from aiogram.utils.exceptions import TelegramAPIError
+
+from tgbot.data.config import load_config
+from tgbot.utils.language import get_strings_decorator, Strings
+
+config = load_config(".env")
+log = logging.getLogger(__name__)
+
+
+async def on_startup_notify(dispatcher: Dispatcher):
+    """
+
+    Args:
+        dispatcher ():
+
+    Returns:
+
+    """
+    for admin in config.tg_bot.admin_ids:
+        with suppress(TelegramAPIError):
+            await dispatcher.bot.send_message(
+                chat_id=admin, text="Бот успешно запущен", disable_notification=True
+            )
+            log.info(f"Админ {admin} уведомлен о запуске бота.")
+        await asyncio.sleep(0.2)
+
+
+@get_strings_decorator(module="commands")
+async def set_default_commands(dispatcher: Dispatcher, strings: Strings):
+    await dispatcher.bot.set_my_commands(
+        [
+            types.BotCommand("start", strings["start"]),
+            types.BotCommand("menu", strings["menu"]),
+            types.BotCommand("help", strings["help"]),
+            types.BotCommand("about", strings["about"])
+        ]
+    )
+
+
+async def on_startup(dispatcher: Dispatcher):
+    await on_startup_notify(dispatcher)
+    await set_default_commands(dispatcher)

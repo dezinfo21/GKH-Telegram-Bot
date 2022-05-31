@@ -5,38 +5,22 @@ from aiogram import Bot, Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
-from tgbot.config import load_config
-from tgbot.filters.admin import AdminFilter
-from tgbot.handlers.admin import register_admin
-from tgbot.handlers.echo import register_echo
-from tgbot.handlers.user import register_user
-from tgbot.middlewares.db import DbMiddleware
+from tgbot import middlewares, filters, handlers
+from tgbot.data.config import load_config
+from tgbot.utils import language
+from tgbot.utils.misc import on_startup, on_shutdown
 
-logger = logging.getLogger(__name__)
-
-
-def register_all_middlewares(dp):
-    dp.setup_middleware(DbMiddleware())
-
-
-def register_all_filters(dp):
-    dp.filters_factory.bind(AdminFilter)
-
-
-def register_all_handlers(dp):
-    register_admin(dp)
-    register_user(dp)
-
-    register_echo(dp)
+log = logging.getLogger(__name__)
+config = load_config(".env")
 
 
 async def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format=u'%(filename)s:%(lineno)d #%(levelname)-8s [%(asctime)s] - %(name)s - %(message)s',
-    )
-    logger.info("Starting bot")
-    config = load_config(".env")
+    from tgbot.utils import logging
+
+    logging.setup()
+    log.info("Starting bot...")
+
+    language.setup()
 
     storage = RedisStorage2() if config.tg_bot.use_redis else MemoryStorage()
     bot = Bot(token=config.tg_bot.token, parse_mode='HTML')
@@ -44,14 +28,20 @@ async def main():
 
     bot['config'] = config
 
-    register_all_middlewares(dp)
-    register_all_filters(dp)
-    register_all_handlers(dp)
+    middlewares.setup(dp)
+    filters.setup(dp)
+    handlers.setup(dp)
 
-    # start
     try:
+        await on_startup(dp)
+
+        await dp.skip_updates()
         await dp.start_polling()
+
+        await on_shutdown(dp)
     finally:
+        log.info("Finishing bot...")
+
         await dp.storage.close()
         await dp.storage.wait_closed()
         await bot.session.close()
@@ -60,5 +50,5 @@ async def main():
 if __name__ == '__main__':
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.error("Bot stopped!")
+    except(KeyboardInterrupt, SystemExit):
+        log.error("Bot stopped!")
