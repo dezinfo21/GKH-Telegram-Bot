@@ -1,10 +1,19 @@
+""" Text validator """
 from dataclasses import dataclass
 
 from .abs_validator import AbstractValidator
+from ..language import get_strings_sync
 
 
 @dataclass
 class TextValidator(AbstractValidator):
+    """
+    Validator for text
+
+    Attributes:
+        min_len (int): minimum length for text
+        max_len (int): maximum length for text
+    """
     min_len: int
     max_len: int
 
@@ -12,8 +21,10 @@ class TextValidator(AbstractValidator):
         return self.min_len < len(text) < self.max_len
 
 
+strings = get_strings_sync(module="valid_formats")
+
 text_validator = TextValidator(
     min_len=32,
     max_len=2048,
-    _format="Текст сообщения должен быть не меньше 32 символов и не больше 2048 символов."
+    format_=strings["text"]
 )

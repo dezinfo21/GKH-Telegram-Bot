@@ -1,22 +1,29 @@
+""" Contacts module """
 from aiogram import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.types import Message
+from aiogram.utils.markdown import html_decoration as mrd
 
-from tgbot.keyboards.default import get_contacts_kb
-from tgbot.states import Menus
+from tgbot.keyboards.default import contacts_kb
+from tgbot.states import Menus, ContactForm
+from tgbot.utils.language import get_strings_decorator, Strings, get_strings_sync
 
 
-async def bot_contacts(message: Message, state: FSMContext):
-    kb = await get_contacts_kb()
-    await message.answer("<b>Контакты</b>", reply_markup=kb)
+@get_strings_decorator(module="buttons")
+async def bot_contacts(message: Message, strings: Strings, state: FSMContext):
+    await message.answer(
+        mrd.bold(strings["contacts"]),
+        reply_markup=contacts_kb
+    )
 
     await state.finish()
     await state.set_state(Menus.contactsMenu)
 
 
-async def emergency_contacts(message: Message):
-    await message.answer("<b>Телефоны Экстренных служб</b>")
+@get_strings_decorator(module="buttons")
+async def emergency_contacts(message: Message, strings: Strings):
+    await message.answer(strings["emerg_contacts"])
     await message.answer(
         "Единый номер экстренных служб: <code>112</code>\n"
         "Пожарная служба: <code>101</code>\n"
@@ -33,14 +40,16 @@ async def emergency_contacts(message: Message):
 
 
 def register_contacts(dp: Dispatcher):
+    strings = get_strings_sync(module="buttons")
+
     dp.register_message_handler(
         bot_contacts,
-        Text(equals="Контакты"),
-        state=[Menus.notVerifiedUserMenu, Menus.verifiedUserMenu]
+        Text(equals=[strings["contacts"], strings["back"]]),
+        state=[Menus.notVerifiedUserMenu, Menus.verifiedUserMenu, ContactForm]
     )
     dp.register_message_handler(
         emergency_contacts,
-        Text(equals=["Телефоны Экстренных служб", "Сообщить об екстренной ситуации"]),
+        Text(equals=[strings["emerg_contacts"], strings["emergency"]]),
         state=[Menus.contactsMenu, Menus.verifiedUserMenu]
     )
     

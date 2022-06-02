@@ -1,3 +1,4 @@
+""" Album middleware """
 import asyncio
 from typing import Union
 
@@ -7,7 +8,7 @@ from aiogram.dispatcher.middlewares import BaseMiddleware
 
 
 class AlbumMiddleware(BaseMiddleware):
-    """This middleware is for capturing media groups."""
+    """This middleware is for capturing media groups"""
 
     album_data: dict = {}
 
@@ -36,6 +37,6 @@ class AlbumMiddleware(BaseMiddleware):
             data["album"] = self.album_data[message.media_group_id]
 
     async def on_post_process_message(self, message: types.Message, result: dict, data: dict):
-        """Clean up after handling our album."""
+        """Clean up after handling our album"""
         if message.media_group_id and message.conf.get("is_last"):
             del self.album_data[message.media_group_id]

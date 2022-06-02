@@ -1,4 +1,4 @@
-""" Database module """
+""" Database """
 import functools
 import logging
 import re
@@ -73,25 +73,6 @@ class UserModel(NamedTuple):
 class ContactInfoModel(NamedTuple):
     """
     Contact information model
-
-    Attributes:
-        flat_number (int):
-        phone_number (int):
-        full_name (str):
-        date (str):
-        text (str):
-    """
-
-    flat_number: int
-    phone_number: int
-    full_name: str
-    date: str
-    text: str
-
-
-class BidModel(NamedTuple):
-    """
-    Bid model
 
     Attributes:
         flat_number (int):
@@ -265,13 +246,13 @@ def _create_new_user(
             return None
 
         new_user = pd.DataFrame(
-            data=[
+            data=[[
                 user_id,
                 phone_num,
                 full_acc_num,
                 norm_flat_num,
                 full_name
-            ],
+            ]],
             columns=[
                 SHEETS["users"]["columns"]["A"],
                 SHEETS["users"]["columns"]["B"],
@@ -395,23 +376,22 @@ async def get_user_debt(account_number: int) -> DebtModel:
     )
 
 
-def get_user_decorator(user_id: int) -> Callable:
+def get_user_decorator(func) -> Callable:
     """
     Decorator to get UserModel object instance in function
 
     Args:
-        user_id (int): user's telegram id
+        func (Callable):
 
     Returns:
         UserModel | None: Decorated function with UserModel object instance
         if user with user id exists else decorated function with None
     """
-    def decorate(func):
-        @functools.wraps(func)
-        async def wrapped(*args, **kwargs):
-            user = await get_user(user_id)
-            return await func(*args, user, **kwargs)
+    @functools.wraps(func)
+    async def wrapped(*args, **kwargs):
+        user_id = args[0].from_user.id
 
-        return wrapped
+        user = await get_user(user_id)
+        return await func(*args, user, **kwargs)
 
-    return decorate
+    return wrapped

@@ -1,29 +1,39 @@
+""" Support module """
 from typing import List
 
 from aiogram import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.types import Message, CallbackQuery, ContentType
+from aiogram.utils.markdown import html_decoration as mrd
 
-from tgbot.keyboards.default import get_main_kb, get_contacts_kb
+from tgbot.keyboards.default import back_kb, contacts_kb
+from tgbot.services.database import get_user_decorator, UserModel
 from tgbot.states import Menus, ContactForm
-from tgbot.utils import database, handlers
+from tgbot.handlers import handlers
+from tgbot.utils.language import get_strings_decorator, Strings, get_strings_sync
 
 
-async def contact_support_new(message: Message, state: FSMContext):
-    kb = await get_main_kb()
-    await message.answer("<b>Обращение к Руководителю</b>", reply_markup=kb)
-
-    await message.answer("<b>Укажите номер квартиры</b>")
+@get_strings_decorator(module="contact_info")
+async def contact_support_new(message: Message, strings: Strings, state: FSMContext):
+    await message.answer(
+        strings.get_strings(mas_name_="STRINGS", module_="buttons")["support"],
+        reply_markup=back_kb
+    )
+    await message.answer(strings["flat_number"])
 
     await state.set_state(ContactForm.flatNumber)
 
 
-async def contact_support(message: Message, user: database.UserModel, state: FSMContext):
-    kb = await get_main_kb()
-    await message.answer("<b>Обращение к Руководителю</b>", reply_markup=kb)
+@get_user_decorator
+@get_strings_decorator(module="contact_info")
+async def contact_support(message: Message, user: UserModel, strings: Strings, state: FSMContext):
+    await message.answer(
+        strings.get_strings(mas_name_="STRINGS", module_="buttons")["support"],
+        reply_markup=back_kb
+    )
 
-    await message.answer("<b>Отправьте текст вашего обращения</b>")
+    await message.answer(strings["text_support"])
 
     async with state.proxy() as data:
         data["flat_number"] = user.flat_number
@@ -33,83 +43,108 @@ async def contact_support(message: Message, user: database.UserModel, state: FSM
     await state.set_state(ContactForm.text)
 
 
-async def contact_form_flat_number(message: Message, state: FSMContext):
+@get_strings_decorator(module="contact_info")
+async def contact_form_flat_number(message: Message, strings: Strings, state: FSMContext):
     await handlers.flat_number_handler(
         message=message,
         state=state,
-        state_on_success=ContactForm.phoneNumber,
-        message_on_success="<b>Введите номер телефона по которому с вами можно связаться, в формате 7 999 999 99 99</b>"
+        next_state=ContactForm.phoneNumber,
+        message_on_success=strings["phone_number"]
     )
 
 
-async def contact_form_phone_number(message: Message, state: FSMContext):
+@get_strings_decorator(module="contact_info")
+async def contact_form_phone_number(message: Message, strings: Strings, state: FSMContext):
     await handlers.phone_number_handler(
         message=message,
         state=state,
-        state_on_success=ContactForm.fullName,
-        message_on_success="<b>Укажите ваши ФИО</b>"
+        next_state=ContactForm.fullName,
+        message_on_success=strings["full_name"]
     )
 
 
-async def contact_form_full_name(message: Message, state: FSMContext):
+@get_strings_decorator(module="contact_info")
+async def contact_form_full_name(message: Message, strings: Strings, state: FSMContext):
     await handlers.full_name_handler(
         message=message,
         state=state,
-        state_on_success=ContactForm.text,
-        message_on_success="<b>Укажите текст вашего обращения</b>"
+        next_state=ContactForm.text,
+        message_on_success=strings["text_support"]
     )
 
 
-async def contact_form_text(message: Message, state: FSMContext):
+@get_strings_decorator(module="contact_info")
+async def contact_form_text(message: Message, strings: Strings, state: FSMContext):
     await handlers.text_handler(
         message=message,
         state=state,
-        state_on_success=ContactForm.image,
-        message_on_success="<b>Если требуеться, приложите фотографии к вашему обращению</b>"
+        next_state=ContactForm.image,
+        message_on_success=strings["img_support"]
     )
 
 
-async def skip_image(call: CallbackQuery, state: FSMContext):
+@get_strings_decorator(module="support")
+async def skip_image(call: CallbackQuery, strings: Strings, state: FSMContext):
     await handlers.skip_image_handler(
         call=call,
         state=state,
-        state_on_success=Menus.contactsMenu,
-        message_on_success="Ваше обращение к руковадителю ЖКХ было успешно отправленно. Ожидайте скорого ответа.",
+        next_state=Menus.contactsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
         keyboard=contacts_kb
     )
 
+    await call.message.answer(
+        mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["contacts"])
+    )
 
-async def contact_form_image(message: Message, state: FSMContext):
+
+@get_strings_decorator(module="support")
+async def contact_form_image(message: Message, strings: Strings, state: FSMContext):
     await handlers.image_handler(
         message=message,
         state=state,
-        state_on_success=Menus.contactsMenu,
-        message_on_success="Ваше обращение к руковадителю ЖКХ было успешно отправленно. Ожидайте скорого ответа.",
+        next_state=Menus.contactsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
+        album=[message],
         keyboard=contacts_kb
     )
 
+    await message.answer(
+        mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["contacts"])
+    )
 
-async def contact_form_album(message: Message, album: List[Message], state: FSMContext):
-    await handlers.album_handler(
+
+@get_strings_decorator(module="support")
+async def contact_form_album(message: Message, strings: Strings, album: List[Message], state: FSMContext):
+    await handlers.image_handler(
         message=message,
-        album=album,
         state=state,
-        state_on_success=Menus.contactsMenu,
-        message_on_success="Ваше обращение к руковадителю ЖКХ было успешно отправленно. Ожидайте скорого ответа.",
+        next_state=Menus.contactsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
+        album=album,
         keyboard=contacts_kb
+    )
+
+    await message.answer(
+       mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["contacts"])
     )
 
 
 def register_support(dp: Dispatcher):
+    strings = get_strings_sync(module="buttons")
+
     dp.register_message_handler(
         contact_support_new,
-        Text(equals="Обращение к Руководителю"),
+        Text(equals=strings["support"]),
         not_verified_only=True,
         state=Menus.contactsMenu
     )
     dp.register_message_handler(
         contact_support,
-        Text(equals="Обращение к Руководителю"),
+        Text(equals=strings["support"]),
         verified_only=True,
         state=[Menus.contactsMenu, Menus.bidsMenu]
     )

@@ -1,143 +1,155 @@
-import re
-from typing import List
+""" Bot new bid creation module """
+from typing import List, NoReturn
 
 from aiogram import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, MediaGroup, ContentType
+from aiogram.types import Message, CallbackQuery, ContentType
+from aiogram.utils.markdown import html_decoration as mrd
 
 from tgbot.data.config import load_config
-from tgbot.keyboards.default import bids_kb, main_kb
+from tgbot.handlers import handlers
+from tgbot.keyboards.default import back_kb, bids_kb
+from tgbot.services.database import get_user_decorator, UserModel
 from tgbot.states import Menus, Bid
-from tgbot.utils import database
-from tgbot.utils.validators import text_validator
+from tgbot.utils.language import get_strings_sync, get_strings_decorator, Strings
 
 config = load_config(".env")
 
 
-async def beautify_bid_info(flat_number: int, phone_number: int, full_name: str, date: str, text: str) -> str:
-    bid_info = database.BidModel(flat_number, phone_number, full_name, date, text)
+@get_user_decorator
+@get_strings_decorator(module="contact_info")
+async def new_bid(message: Message, user: UserModel, strings: Strings, state: FSMContext):
+    """
+    Message handler for new bid
 
-    caption = f"<b>ФИО</b>: {bid_info.full_name}\n"\
-              f"<b>Контактный номер телефона</b>: +{bid_info.phone_number}\n" \
-              f"<b>Квартира</b>: {bid_info.flat_number}\n" \
-              f"<b>Дата</b>: {bid_info.date}\n\n" \
-              f"{bid_info.text}"
+    Args:
+        message (aiogram.types.Message):
+        user (tgbot.services.database.UserModel):
+        strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
+    """
+    await message.answer(
+        strings.get_strings(mas_name_="STRINGS", module_="buttons")["new_bid"],
+        reply_markup=back_kb
+    )
+    await message.answer(strings["text_new_bid"])
 
-    return caption
+    async with state.proxy() as data:
+        data["flat_number"] = user.flat_number
+        data["phone_number"] = user.phone_number
+        data["full_name"] = user.full_name
 
-
-async def new_bid(message: Message, state: FSMContext):
-    await message.answer("<b>Новая заявка</b>", reply_markup=main_kb)
-
-    await message.answer("<b>Введите текст вашей заяки</b>")
     await state.set_state(Bid.text)
 
 
-async def bid_text(message: Message, user: database.UserModel, state: FSMContext):
-    text = re.sub(r"\s+", " ", message.text).strip()
-    date = message.date.strftime("%d.%m.%Y : %H:%M")
+@get_strings_decorator(module="contact_info")
+async def bid_text(message: Message, strings: Strings, state: FSMContext):
+    """
+    Message handler for bid's text
 
-    if await text_validator.validate(text):
-        async with state.proxy() as data:
-            data["flat_number"] = user.flat_number
-            data["phone_number"] = user.phone_number
-            data["full_name"] = user.full_name
-            data["date"] = date
-            data["text"] = text
-
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="Отправить без фото", callback_data="skip")
-                ]
-            ]
-        )
-        await message.answer("<b>Если требуеться, приложите фотографии к вашей заявке</b>", reply_markup=kb)
-        await state.set_state(Bid.image)
-
-    else:
-        await message.answer(text_validator.valid_format)
+    Args:
+        message (aiogram.types.Message):
+        strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
+    """
+    await handlers.text_handler(
+        message=message,
+        state=state,
+        next_state=Bid.image,
+        message_on_success=strings["img_new_bid"]
+    )
 
 
-async def skip_image(call: CallbackQuery, state: FSMContext):
-    await call.answer()
+@get_strings_decorator(module="new_bid")
+async def skip_image(call: CallbackQuery, strings: Strings, state: FSMContext):
+    """
+    Callback query handler to skip image step
 
-    async with state.proxy() as data:
-        caption = await beautify_bid_info(*data.values())
-
-    await call.message.bot.send_message(chat_id=config.channels.support, text=caption)
+    Args:
+        call (aiogram.types.CallbackQuery):
+        strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
+    """
+    await handlers.skip_image_handler(
+        call=call,
+        state=state,
+        next_state=Menus.bidsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
+        keyboard=bids_kb
+    )
 
     await call.message.answer(
-        "Ваша заявка была успешно отправленна. Ожидайте скорого ответа.",
-        reply_markup=bids_kb
+        mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["add_bid"])
     )
 
-    await state.finish()
-    await state.set_state(Menus.bidsMenu)
 
+@get_strings_decorator(module="new_bid")
+async def bid_image(message: Message, strings: Strings, state: FSMContext):
+    """
+    Message handler for bid's photo or document
 
-async def bid_image(message: Message, state: FSMContext):
-    media_group = MediaGroup()
-
-    if message.photo:
-        file_id = message.photo[-1].file_id
-    else:
-        file_id = message[message.content_type].file_id
-
-    try:
-        media_group.attach({"media": file_id, "type": message.content_type})
-    except ValueError:
-        return await message.answer("!!Извините, данный тип документов не поддержуеться.")
-
-    async with state.proxy() as data:
-        caption = await beautify_bid_info(*data.values())
-
-    media_group.media[0].caption = caption
-    await message.bot.send_media_group(chat_id=config.channels.support, media=media_group)
+    Args:
+        message (aiogram.types.Message):
+        strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
+    """
+    await handlers.image_handler(
+        message=message,
+        state=state,
+        next_state=Menus.bidsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
+        album=[message],
+        keyboard=bids_kb
+    )
 
     await message.answer(
-        "Ваша заявка была успешно отправленна. Ожидайте скорого ответа.",
-        reply_markup=bids_kb
+        mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["add_bid"])
     )
 
-    await state.finish()
-    await state.set_state(Menus.bidsMenu)
 
-
-async def bid_album(message: Message, user: database.UserModel, album: List[Message], state: FSMContext):
-    media_group = MediaGroup()
-
-    for obj in album:
-        if obj.photo:
-            file_id = obj.photo[-1].file_id
-        else:
-            file_id = obj[obj.content_type].file_id
-
-        try:
-            media_group.attach({"media": file_id, "type": obj.content_type})
-        except ValueError:
-            return await message.answer("!!Извините, данный тип документов не поддержуеться.")
-
-    async with state.proxy() as data:
-        caption = await beautify_bid_info(*data.values())
-
-    media_group.media[0].caption = caption
-    await message.bot.send_media_group(chat_id=config.channels.support, media=media_group)
+@get_strings_decorator(module="new_bid")
+async def bid_album(message: Message, strings: Strings, album: List[Message], state: FSMContext):
+    """
+    Message handler for bid's album of photos or documents
+    Args:
+        message (aiogram.types.Message):
+        strings (tgbot.utils.language.Strings):
+        album (List[aiogram.types.Message])
+        state (aiogram.dispatcher.FSMContext):
+    """
+    await handlers.image_handler(
+        message=message,
+        state=state,
+        next_state=Menus.bidsMenu,
+        message_on_success=strings["success"],
+        message_on_fail=strings["fail"],
+        album=album,
+        keyboard=bids_kb
+    )
 
     await message.answer(
-        "Ваша заявка была успешно отправленна. Ожидайте скорого ответа.",
-        reply_markup=bids_kb
+        mrd.bold(strings.get_strings(mas_name_="STRINGS", module_="buttons")["add_bid"])
     )
 
-    await state.finish()
-    await state.set_state(Menus.bidsMenu)
 
+def register_new_bid(dp: Dispatcher) -> NoReturn:
+    """
+    Register handlers for new bid creation
 
-def register_new_bid(dp: Dispatcher):
+    Args:
+        dp (aiogram.Dispatcher):
+
+    Returns:
+        NoReturn
+    """
+    strings = get_strings_sync(module="buttons")
+
     dp.register_message_handler(
         new_bid,
-        Text(equals="Новая заявка"),
+        Text(equals=strings["new_bid"]),
         verified_only=True,
         state=Menus.bidsMenu
     )

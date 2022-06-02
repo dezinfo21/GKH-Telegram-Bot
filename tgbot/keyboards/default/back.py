@@ -1,14 +1,14 @@
-""" Main menu keyboard """
+""" Back keyboard """
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 from tgbot.utils.language import get_strings_sync
 
 strings = get_strings_sync(module="buttons")
 
-main_kb = ReplyKeyboardMarkup(
+back_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(strings["main_menu"])
+            KeyboardButton(strings.get_strings(mas_name_="STRINGS", module_="buttons")["back"])
         ]
     ],
     resize_keyboard=True,

@@ -1,4 +1,6 @@
 """ Bot help module """
+from typing import NoReturn
+
 from aiogram import Dispatcher
 from aiogram.types import Message
 
@@ -8,7 +10,7 @@ from tgbot.utils.language import get_strings_decorator, Strings
 @get_strings_decorator(module="bot_help")
 async def bot_help(message: Message, strings: Strings):
     """
-    Bot /help command
+    Message handler for help information
 
     Args:
         message (aiogram.types.Message):
@@ -20,9 +22,9 @@ async def bot_help(message: Message, strings: Strings):
     await message.answer(strings["help"].format(full_name=full_name, admin_username=admin_username))
 
 
-def register_help(dispatcher: Dispatcher):
+def register_help(dispatcher: Dispatcher) -> NoReturn:
     """
-    Register bot_help handler
+    Register help handler
 
     Args:
         dispatcher (aiogram.Dispatcher):

@@ -12,8 +12,8 @@ from babel.core import Locale
 from definitions import LANGUAGE_FILE, LOCALIZATION_DIR
 from tgbot.data.config import load_config
 
-log = logging.getLogger(__name__)
 config = load_config(".env")
+log = logging.getLogger(__name__)
 
 LANGUAGE = {}
 
@@ -117,21 +117,35 @@ class Strings:
         return self.get_string(key)
 
 
-async def get_strings(module: str, mas_name: str = "STRINGS") -> Strings:
+def get_strings_sync(module: str, mas_name: str = "STRINGS") -> Strings:
     """
-    Create and return _Strings object instance
+    Create and return Strings object instance synchronously
 
     Args:
         module (str): module in master from which strings are needed
         mas_name (str): (default=STRINGS) master in LANGUAGES
 
     Returns:
-        _Strings object instance
+        Strings object instance
     """
     return Strings(module, mas_name)
 
 
-async def get_string(module_name: str, string_name: str, mas_name: str = "STRINGS"):
+async def get_strings(module: str, mas_name: str = "STRINGS") -> Strings:
+    """
+    Create and return Strings object instance asynchronously
+
+    Args:
+        module (str): module in master from which strings are needed
+        mas_name (str): (default=STRINGS) master in LANGUAGES
+
+    Returns:
+        Strings object instance
+    """
+    return Strings(module, mas_name)
+
+
+async def get_string(module_name: str, string_name: str, mas_name: str = "STRINGS") -> str:
     """
     Get a string from LANGUAGE -> mas_name -> module_name
 
@@ -149,14 +163,14 @@ async def get_string(module_name: str, string_name: str, mas_name: str = "STRING
 
 def get_strings_decorator(module: str, mas_name: str = "STRINGS") -> Callable:
     """
-    Decorator to get _Strings object instance in function
+    Decorator to get Strings object instance in function
 
     Args:
         module (str): module in master from which strings are needed
         mas_name (str): master in which to find module
 
     Returns:
-        Decorated function with _Strings object instance
+        Decorated function with Strings object instance
     """
     def decorate(func):
         @functools.wraps(func)

@@ -7,11 +7,11 @@ log = logging.getLogger(__name__)
 
 def setup(dp: Dispatcher):
     log.info("Configure handlers...")
-    from .start import register_start
-    from .help import register_help
+    from .bot.start import register_start
+    from .bot.help import register_help
 
     from .main_menu import register_main_menu
-    from .about import register_about
+    from .bot.about import register_about
     from .contacts import register_contacts, register_support
 
     from .verify_user import register_verification
@@ -19,7 +19,7 @@ def setup(dp: Dispatcher):
     from .news import register_news
     from .send_meters import register_send_meters
     from .bids import register_add_bid, register_new_bid, register_order_certificate, register_call_specialist
-    from .echo import register_echo
+    from .bot.echo import register_echo
 
     register_help(dp)
     register_start(dp)

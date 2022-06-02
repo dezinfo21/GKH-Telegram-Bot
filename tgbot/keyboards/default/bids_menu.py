@@ -1,29 +1,26 @@
 """ Bids keyboard """
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils import markdown as mrd
 
-from tgbot.utils.language import get_strings_decorator, Strings
+from tgbot.utils.language import get_strings_sync
 
+strings = get_strings_sync(module="buttons")
 
-@get_strings_decorator(module="bids_menu")
-async def get_bids_kb(strings: Strings) -> ReplyKeyboardMarkup:
-    bids_kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(strings["new_bid"]),
-                KeyboardButton(strings["req_inquiry"]),
-            ],
-            [
-                KeyboardButton(strings["call_spec"]),
-            ],
-            [
-                KeyboardButton(strings["support"]),
-            ],
-            [
-                KeyboardButton(strings["main_menu"])
-            ]
+bids_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(mrd.text(strings["new_bid"])),
+            KeyboardButton(strings["req_inquiry"]),
         ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
-    return bids_kb
+        [
+            KeyboardButton(strings["call_spec"]),
+        ],
+        [
+            KeyboardButton(strings["support"]),
+        ],
+        [
+            KeyboardButton(strings["main_menu"])
+        ]
+    ],
+    resize_keyboard=True
+)

@@ -5,7 +5,7 @@ from aiogram import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.types import Message
 
-from tgbot.keyboards.default import get_not_ver_user_kb, get_ver_user_kb
+from tgbot.keyboards.default import not_verified_user_kb, verified_user_kb
 from tgbot.states import Menus
 from tgbot.utils.language import get_strings_decorator, Strings
 
@@ -13,7 +13,7 @@ from tgbot.utils.language import get_strings_decorator, Strings
 @get_strings_decorator(module="bot_start")
 async def bot_start_new(message: Message, strings: Strings, state: FSMContext):
     """
-    Bot /start command for new users
+    Message handler for start command from new users
 
     Args:
         message (aiogram.types.Message):
@@ -23,9 +23,7 @@ async def bot_start_new(message: Message, strings: Strings, state: FSMContext):
     full_name = message.from_user.full_name
 
     await message.answer("<b>Главное меню</b>")
-
-    kb = await get_not_ver_user_kb()
-    await message.answer(strings["start_new"].format(full_name=full_name), reply_markup=kb)
+    await message.answer(strings["start_new"].format(full_name=full_name), reply_markup=not_verified_user_kb)
 
     await state.set_state(Menus.notVerifiedUserMenu)
 
@@ -33,7 +31,7 @@ async def bot_start_new(message: Message, strings: Strings, state: FSMContext):
 @get_strings_decorator(module="bot_start")
 async def bot_start(message: Message, strings: Strings, state: FSMContext):
     """
-    Bot /start command for already verified users
+   Message handler for start command from already verified users
 
     Args:
         message (aiogram.types.Message):
@@ -41,16 +39,14 @@ async def bot_start(message: Message, strings: Strings, state: FSMContext):
         strings (tgbot.utils.language.Strings):
     """
     await message.answer("<b>Главное меню</b>")
-
-    kb = await get_ver_user_kb()
-    await message.answer(strings["start"], reply_markup=kb)
+    await message.answer(strings["start"], reply_markup=verified_user_kb)
 
     await state.set_state(Menus.verifiedUserMenu)
 
 
 def register_start(dispatcher: Dispatcher) -> NoReturn:
     """
-    Register bot_start_new and bot_start handlers
+    Register start handlers
 
     Args:
         dispatcher (aiogram.Dispatcher):

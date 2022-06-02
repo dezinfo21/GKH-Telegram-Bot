@@ -1,37 +1,61 @@
+""" Bot module to get user's debt """
+from typing import NoReturn
+
 from aiogram import Dispatcher
 from aiogram.dispatcher.filters import Text
 from aiogram.types import Message
 
+from tgbot.services import database
+from tgbot.services.database import get_user_decorator
 from tgbot.states import Menus
-from tgbot.utils import database
+from tgbot.utils.language import get_strings_sync, get_strings_decorator, Strings
 
 
-async def user_debt(message: Message, user: database.UserModel):
-    debt = database.get_user_debt(user.account_number)
+@get_user_decorator
+@get_strings_decorator(module="debt")
+async def get_debt(message: Message, user: database.UserModel, strings: Strings):
+    """
+    Message handler to get user's debt
 
-    caption = (
-        f"По лицевому счету <b>{user.account_number}</b> за расчётный период "
-        f"<b>{debt.billing_period}</b> начислено к оплате <b>{debt.money_sum_with_debt}</b> "
-        f"руб. Оплату произвести до {debt.placement_date}\n\n"
+    Args:
+        message (aiogram.types.Message):
+        user (tgbot.services.database.UserModel):
+        strings (tgbot.utils.language.Strings):
+    """
+    debt = await database.get_user_debt(user.account_number)
+
+    caption = strings["main_text"].format(
+        account_number=user.account_number,
+        billing_period=debt.billing_period,
+        money_sum_with_debt=debt.money_sum_with_debt,
+        placement_date=debt.placement_date
     )
 
     if debt.money_paid == 0:
-        caption += (
-            "!! Пропущен ежемесячный платёж по оплате. Субсидии и иные меры соц.поддержки граждан "
-            "могут быть скорректированы или отменены и начислены пени."
-        )
+        caption += strings["miss_payment"]
     else:
-        caption += (
-            f"Последний поступивший учтеный платёж <b>{debt.money_paid}</b> руб. от "
-            f"<b>{debt.last_payment_date}</b>"
+        caption += strings["last_payment"].format(
+            money_paid=debt.money_paid,
+            last_payment_date=debt.last_payment_date
         )
 
     await message.answer(caption)
 
 
-def register_debt(dp: Dispatcher):
+def register_debt(dp: Dispatcher) -> NoReturn:
+    """
+    Register get debt handler
+
+    Args:
+        dp (aiogram.Dispatcher):
+
+    Returns:
+        NoReturn
+    """
+    strings = get_strings_sync(module="buttons")
+
     dp.register_message_handler(
-        user_debt,
-        Text(equals="Узнать задолженность"),
+        get_debt,
+        Text(equals=strings["get_debt"]),
         state=Menus.verifiedUserMenu
     )

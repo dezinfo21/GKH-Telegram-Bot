@@ -1,25 +1,21 @@
 """ Contacts keyboard """
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-from tgbot.utils.language import get_strings_decorator, Strings
+from tgbot.utils.language import get_strings_sync
 
+strings = get_strings_sync(module="buttons")
 
-@get_strings_decorator(module="main_menu")
-async def get_contacts_kb(strings: Strings):
-    contacts_kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Телефоны Экстренных служб")
-            ],
-            [
-                KeyboardButton(text="Обращение к Руководителю")
-            ],
-            [
-                KeyboardButton(text="Главное меню")
-            ]
+contacts_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text=strings["emerg_contacts"])
         ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
-    return contacts_kb
+        [
+            KeyboardButton(text=strings["support"])
+        ],
+        [
+            KeyboardButton(text=strings["main_menu"])
+        ]
+    ],
+    resize_keyboard=True
+)
