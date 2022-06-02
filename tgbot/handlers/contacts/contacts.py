@@ -1,4 +1,6 @@
 """ Contacts module """
+from typing import NoReturn
+
 from aiogram import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
@@ -12,6 +14,13 @@ from tgbot.utils.language import get_strings_decorator, Strings, get_strings_syn
 
 @get_strings_decorator(module="buttons")
 async def bot_contacts(message: Message, strings: Strings, state: FSMContext):
+    """
+    Message handler for contacts
+    Args:
+        message (aiogram.types.Message):
+        strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
+    """
     await message.answer(
         mrd.bold(strings["contacts"]),
         reply_markup=contacts_kb
@@ -22,7 +31,14 @@ async def bot_contacts(message: Message, strings: Strings, state: FSMContext):
 
 
 @get_strings_decorator(module="buttons")
-async def emergency_contacts(message: Message, strings: Strings):
+async def get_emergency_contacts(message: Message, strings: Strings):
+    """
+    Message handler to get emergency contacts
+
+    Args:
+        message (aiogram.types.Message):
+        strings (tgbot.utils.language.Strings):
+    """
     await message.answer(strings["emerg_contacts"])
     await message.answer(
         "Единый номер экстренных служб: <code>112</code>\n"
@@ -39,7 +55,16 @@ async def emergency_contacts(message: Message, strings: Strings):
     )
 
 
-def register_contacts(dp: Dispatcher):
+def register_contacts(dp: Dispatcher) -> NoReturn:
+    """
+    Register contacts handlers
+
+    Args:
+        dp (aiogram.Dispatcher):
+
+    Returns:
+        NoReturn
+    """
     strings = get_strings_sync(module="buttons")
 
     dp.register_message_handler(
@@ -48,7 +73,7 @@ def register_contacts(dp: Dispatcher):
         state=[Menus.notVerifiedUserMenu, Menus.verifiedUserMenu, ContactForm]
     )
     dp.register_message_handler(
-        emergency_contacts,
+        get_emergency_contacts,
         Text(equals=[strings["emerg_contacts"], strings["emergency"]]),
         state=[Menus.contactsMenu, Menus.verifiedUserMenu]
     )
