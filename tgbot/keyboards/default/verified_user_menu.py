@@ -11,18 +11,14 @@ verified_user_kb = ReplyKeyboardMarkup(
             KeyboardButton(strings["add_bid"])
         ],
         [
-            KeyboardButton(strings["get_debt"])
-        ],
-        [
             KeyboardButton(strings["emergency"])
         ],
         [
+            KeyboardButton(strings["get_debt"]),
             KeyboardButton(strings["submit_meters"])
         ],
         [
-            KeyboardButton(strings["news"])
-        ],
-        [
+            KeyboardButton(strings["news"]),
             KeyboardButton(strings["contacts"]),
             KeyboardButton(strings["about"])
         ]

@@ -5,30 +5,34 @@ from typing import List
 
 import pytz
 from aiogram.dispatcher import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, MediaGroup, \
-    ReplyKeyboardMarkup
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, MediaGroup
 from aiogram.utils.exceptions import ChatNotFound
+from aiogram.utils.markdown import html_decoration as mrd
 
 from tgbot.data.config import load_config
-from tgbot.services import database
+from tgbot.keyboards.default import not_verified_user_kb, verified_user_kb
+from tgbot.services.database import UserModel
+from tgbot.states import Menus
 from tgbot.utils.language import get_strings_decorator, Strings
-from tgbot.utils.validators import flat_number_validator, phone_number_validator, full_name_validator, text_validator
+from tgbot.utils.validators import flat_number_validator, phone_number_validator, full_name_validator, AbstractValidator
 
 config = load_config(".env")
 log = logging.getLogger("prod" if config.tg_bot.prod else "dev")
 
 
-async def format_contact_info(
-        flat_number: int,
-        phone_number: int,
-        full_name: str,
-        date: str,
-        text: str
+async def format_message_to_support(
+        additional_info: str | None,
+        flat_number: int | None,
+        phone_number: int | None,
+        full_name: str | None,
+        date: str | None,
+        text: str | None
 ) -> str:
     """
     Format a contact information string
 
     Args:
+        additional_info (str):
         flat_number (int):
         phone_number (int):
         full_name (str):
@@ -38,13 +42,20 @@ async def format_contact_info(
     Returns:
         str: formatted contact information
     """
-    contact_info = database.ContactInfoModel(flat_number, phone_number, full_name, date, text)
+    caption = ""
 
-    caption = f"<b>ФИО</b>: {contact_info.full_name}\n" \
-              f"<b>Контактный номер телефона</b>: +{contact_info.phone_number}\n" \
-              f"<b>Квартира</b>: {contact_info.flat_number}\n" \
-              f"<b>Дата</b>: {contact_info.date}\n\n" \
-              f"{contact_info.text}"
+    if additional_info is not None:
+        caption += f"{additional_info}\n\n"
+    if full_name is not None:
+        caption += f"<b>ФИО</b>: {full_name}\n"
+    if phone_number is not None:
+        caption += f"<b>Контактный номер телефона</b>: +{phone_number}\n"
+    if flat_number is not None:
+        caption += f"<b>Квартира</b>: {flat_number}\n"
+    if date is not None:
+        caption += f"<b>Дата</b>: {date}\n\n"
+    if text is not None:
+        caption += text
 
     return caption
 
@@ -136,6 +147,7 @@ async def full_name_handler(
 async def text_handler(
         strings: Strings,
         message: Message,
+        validator: AbstractValidator,
         state: FSMContext,
         next_state: str,
         message_on_success: str
@@ -146,17 +158,18 @@ async def text_handler(
     Args:
         strings (tgbot.utils.language.Strings)
         message (aiogram.types.Message): message from user
+        validator (tgbot.utils.validators.AbstractValidator): validator for data validation
         state (aiogram.dispatcher.FSMContext): current state
         next_state (aiogram.dispatcher.filters.state.State): next state to set
         message_on_success (str): message to send to user if validation succeed
     """
-    tz = pytz.timezone("Europe/Moscow")
+    tz = pytz.timezone(config.tg_bot.timezone)
 
     text = re.sub(r"\s+", " ", message.text).strip()
     date = message.date.astimezone(tz).strftime("%d.%m.%Y : %H:%M")
 
-    if not await text_validator.validate(text):
-        return await message.answer(text_validator.valid_format)
+    if not await validator.validate(text):
+        return await message.answer(validator.valid_format)
 
     async with state.proxy() as data:
         data["date"] = date
@@ -173,77 +186,84 @@ async def text_handler(
     await state.set_state(next_state)
 
 
-@get_strings_decorator(module="errors")
+@get_strings_decorator(module="buttons")
 async def skip_image_handler(
         strings: Strings,
         call: CallbackQuery,
+        user: UserModel,
         state: FSMContext,
-        next_state: str,
         message_on_success: str,
         message_on_fail: str,
-        keyboard: ReplyKeyboardMarkup | None = None
 ):
     """
     Callback Query handler for skip image step
 
     Args:
+        user (tgbot.services.database.UserModel):
         strings (tgbot.utils.language.Strings):
         call (aiogram.types.CallbackQuery): callback query from user
         state (aiogram.dispatcher.FSMContext): current state
-        next_state (aiogram.dispatcher.filters.state.State): next state to set
         message_on_success (str): message to send to user if everything succeed
         message_on_fail (str): message to send to user if error have happened
-        keyboard (aiogram.types.ReplyKeyboardMarkup | None): keyboard to send as reply markup
     """
     await call.answer()
 
+    next_state = Menus.notVerifiedUserMenu if user is None else Menus.verifiedUserMenu
+    kb = not_verified_user_kb if user is None else verified_user_kb
+
     try:
         async with state.proxy() as data:
-            caption = await format_contact_info(*data.values())
+            caption = await format_message_to_support(
+                additional_info=data.get("additional_info"),
+                flat_number=data.get("flat_number"),
+                phone_number=data.get("phone_number"),
+                full_name=data.get("full_name"),
+                date=data.get("date"),
+                text=data.get("text")
+            )
 
         await call.message.bot.send_message(chat_id=config.channels.support, text=caption)
     except (AttributeError, ChatNotFound):
-        log.exception(strings["send_message_to_support_channel"])
-
-        await call.message.answer(
-            message_on_fail,
-            reply_markup=keyboard
-        )
+        log.exception("Error while sending message to support channel")
+        await call.message.answer(message_on_fail)
     else:
-        await call.message.answer(
-            message_on_success,
-            reply_markup=keyboard
-        )
+        await call.message.answer(message_on_success)
+
+    await call.message.answer(
+        mrd.bold(strings["main_menu"]),
+        reply_markup=kb
+    )
 
     await state.finish()
     await state.set_state(next_state)
 
 
-@get_strings_decorator(module="errors")
+@get_strings_decorator(module="buttons")
 async def image_handler(
         strings: Strings,
         message: Message,
+        user: UserModel,
         state: FSMContext,
-        next_state: str,
         message_on_success: str,
         message_on_fail: str,
         album: List[Message],
-        keyboard: ReplyKeyboardMarkup | None = None
 ):
     """
     Message handler for images
 
     Args:
+        user (tgbot.services.database.UserModel):
         strings (tgbot.utils.language.Strings):
         message (aiogram.types.Message): message from user
         state (aiogram.dispatcher.FSMContext): current state
-        next_state (aiogram.dispatcher.filters.state.State): next state to set
         message_on_success (str): message to send to user if everything succeed
         message_on_fail (str): message to send to user if error have happened
         album (List[aiogram.types.Message]): list of messages from which extract photos or documents
-        keyboard (aiogram.types.ReplyKeyboardMarkup | None): keyboard to send as reply markup
     """
     media_group = MediaGroup()
+
+    next_state = Menus.notVerifiedUserMenu if user is None else Menus.verifiedUserMenu
+    kb = not_verified_user_kb if user is None else verified_user_kb
 
     for obj in album:
         if obj.photo:
@@ -260,21 +280,27 @@ async def image_handler(
 
     try:
         async with state.proxy() as data:
-            caption = await format_contact_info(*data.values())
+            caption = await format_message_to_support(
+                additional_info=data.get("additional_info"),
+                flat_number=data.get("flat_number"),
+                phone_number=data.get("phone_number"),
+                full_name=data.get("full_name"),
+                date=data.get("date"),
+                text=data.get("text")
+            )
 
         media_group.media[0].caption = caption
         await message.bot.send_media_group(chat_id=config.channels.support, media=media_group)
     except (AttributeError, ChatNotFound):
-        log.exception(strings["send_message_to_support_channel"])
-        await message.answer(
-            message_on_fail,
-            reply_markup=keyboard
-        )
+        log.exception("Error while sending message to support channel")
+        await message.answer(message_on_fail)
     else:
-        await message.answer(
-            message_on_success,
-            reply_markup=keyboard
-        )
+        await message.answer(message_on_success)
+
+    await message.answer(
+        mrd.bold(strings["main_menu"]),
+        reply_markup=kb
+    )
 
     await state.finish()
     await state.set_state(next_state)

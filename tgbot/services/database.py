@@ -3,12 +3,14 @@ import functools
 import logging
 import re
 from datetime import datetime
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, Generator, Any
 
 import pandas as pd
 
-from definitions import DATABASE_PATH, DATA_PATH
+from definitions import DATABASE_PATH, DATA_PATH, PRICE_LIST_PATH
+from tgbot.data.config import load_config
 
+config = load_config(".env")
 log = logging.getLogger(__name__)
 
 SHEETS = {
@@ -45,7 +47,34 @@ SHEETS = {
             "B": "Номер телефона",
             "C": "Номер ЛС",
             "D": "Номер квартиры",
-            "E": "ФИО"
+            "E": "ФИО",
+            "F": "Первая дата напоминания об оплате",
+            "G": "Вторая дата напоминания об оплате",
+            "H": "Напоминать о подании показанй счетчиков"
+        }
+    },
+    "contacts": {
+        "name": "Контакты",
+        "columns": {
+            "A": "Должность",
+            "B": "Имя Отчество",
+            "C": "Телефон"
+        }
+    },
+    "plumber": {
+        "name": "Сантехник",
+        "columns": {
+            "A": "Наименование работ и услуг",
+            "B": "Ед. изм. ",
+            "C": "Стоимость руб.  от"
+        }
+    },
+    "electrician": {
+        "name": "Электрик",
+        "columns": {
+            "A": "Наименование работ и услуг",
+            "B": "Ед. изм. ",
+            "C": "Стоимость руб.  от"
         }
     }
 }
@@ -61,6 +90,9 @@ class UserModel(NamedTuple):
         account_number (int):
         flat_number (int):
         full_name (str):
+        pay_rem_first_date (int | None): (default: None)
+        pay_rem_second_date (int | None): (default: None)
+        rem_send_meters (bool): (default: False)
     """
 
     user_id: int
@@ -68,25 +100,9 @@ class UserModel(NamedTuple):
     account_number: int
     flat_number: int
     full_name: str
-
-
-class ContactInfoModel(NamedTuple):
-    """
-    Contact information model
-
-    Attributes:
-        flat_number (int):
-        phone_number (int):
-        full_name (str):
-        date (str):
-        text (str):
-    """
-
-    flat_number: int
-    phone_number: int
-    full_name: str
-    date: str
-    text: str
+    pay_rem_first_date: int | None = None
+    pay_rem_second_date: int | None = None
+    rem_send_meters: bool = False
 
 
 class DebtModel(NamedTuple):
@@ -106,6 +122,20 @@ class DebtModel(NamedTuple):
     placement_date: datetime
     money_paid: float
     money_sum_with_debt: float
+
+
+class ServiceModel(NamedTuple):
+    """
+    Service model
+
+    Attributes:
+        name (str): service name
+        count (str): amount of service provided
+        price (int): price amount of service provided
+    """
+    name: str
+    count: str
+    price: int
 
 
 def _check_duplicate(phone_number: int, account_number: int) -> bool | None:
@@ -128,17 +158,17 @@ def _check_duplicate(phone_number: int, account_number: int) -> bool | None:
                 SHEETS["users"]["columns"]["C"]
             ]
         )
-
-        user_info = df.loc[
-            (df[SHEETS["users"]["columns"]["B"]] == phone_number) &
-            (df[SHEETS["users"]["columns"]["C"]] == account_number)
-            ]
     except Exception:
         log.exception(f"Exception while checking user with account [{phone_number=}] and [{account_number=}] "
                       f"for duplicate")
         return None
-    else:
-        return not user_info.empty
+
+    user_info = df.loc[
+        (df[SHEETS["users"]["columns"]["B"]] == phone_number) &
+        (df[SHEETS["users"]["columns"]["C"]] == account_number)
+        ]
+
+    return not user_info.empty
 
 
 def _get_flat_num(address: str) -> int:
@@ -230,14 +260,15 @@ def _create_new_user(
         account_numbers = df[SHEETS["main_info"]["name"]].loc[1:, SHEETS["main_info"]["columns"]["B"]]
         addresses = df[SHEETS["addresses"]["name"]].loc[:, SHEETS["addresses"]["columns"]["C"]]
     except Exception:
-        log.exception(f"Error while creating user with [{user_id=}]")
+        log.exception(f"Error while creating user with [{user_id}]")
+
         return None
 
     for full_acc_num, address in zip(account_numbers, addresses):
         norm_flat_num = _get_flat_num(address)
         norm_acc_num = _format_account_num(full_acc_num)
 
-        if norm_acc_num != account_number and norm_flat_num != flat_number:
+        if norm_acc_num != account_number or norm_flat_num != flat_number:
             continue
 
         phone_num = _format_phone_number(phone_number)
@@ -251,14 +282,20 @@ def _create_new_user(
                 phone_num,
                 full_acc_num,
                 norm_flat_num,
-                full_name
+                full_name,
+                config.misc.default_pay_rem_first_date,
+                config.misc.default_pay_rem_second_date,
+                True
             ]],
             columns=[
                 SHEETS["users"]["columns"]["A"],
                 SHEETS["users"]["columns"]["B"],
                 SHEETS["users"]["columns"]["C"],
                 SHEETS["users"]["columns"]["D"],
-                SHEETS["users"]["columns"]["E"]
+                SHEETS["users"]["columns"]["E"],
+                SHEETS["users"]["columns"]["F"],
+                SHEETS["users"]["columns"]["G"],
+                SHEETS["users"]["columns"]["H"],
             ]
         )
 
@@ -296,16 +333,17 @@ def save_user(
             sheet_name=SHEETS["users"]["name"],
             engine="openpyxl"
         )
-
-        new_df = pd.concat([df, new_user])
-
-        with pd.ExcelWriter(DATABASE_PATH) as writer:
-            new_df.to_excel(writer, SHEETS["users"]["name"], index=False)
     except Exception:
-        log.exception(f"Error while saving user with [{user_id=}]")
+        log.exception(f"Error while saving user with [{user_id}]")
+
         return False
-    else:
-        return True
+
+    new_df = pd.concat([df, new_user])
+
+    with pd.ExcelWriter(DATABASE_PATH) as writer:
+        new_df.to_excel(writer, SHEETS["users"]["name"], index=False)
+
+    return True
 
 
 async def get_user(user_id: int) -> UserModel | None:
@@ -318,29 +356,85 @@ async def get_user(user_id: int) -> UserModel | None:
     Returns:
         UserModel: if user exists, otherwise None
     """
-    df = pd.read_excel(
-        DATABASE_PATH,
-        sheet_name=SHEETS["users"]["name"],
-        engine="openpyxl"
-    )
+    try:
+        df = pd.read_excel(
+            DATABASE_PATH,
+            sheet_name=SHEETS["users"]["name"],
+            engine="openpyxl"
+        )
+    except Exception:
+        log.exception(f"Error while getting user with id [{user_id}] from database")
+
+        return None
 
     user_df = df.loc[df[SHEETS["users"]["columns"]["A"]] == user_id]
 
     if user_df.empty:
         return None
 
-    user_info = user_df.to_dict(orient="records")[0]
+    user: dict = user_df.to_dict(orient="records")[0]
 
-    return UserModel(
-        user_info[SHEETS["users"]["columns"]["A"]],
-        user_info[SHEETS["users"]["columns"]["B"]],
-        user_info[SHEETS["users"]["columns"]["C"]],
-        user_info[SHEETS["users"]["columns"]["D"]],
-        user_info[SHEETS["users"]["columns"]["E"]]
-    )
+    return UserModel(*user.values())
+
+
+async def get_users() -> Generator[UserModel, Any, Any] | None:
+    """
+    Get all users in database
+
+    Returns:
+        Generator[UserModel, Any, Any] | None: User objects if database is not empty, otherwise None
+    """
+    try:
+        df = pd.read_excel(
+            DATABASE_PATH,
+            sheet_name=SHEETS["users"]["name"],
+            engine="openpyxl"
+        )
+    except Exception:
+        log.exception("Error while getting ll users from database")
+
+        return None
+
+    if df.empty:
+        return None
+
+    users = (UserModel(*user.values()) for user in df.to_dict(orient="records"))
+
+    return users
+
+
+def get_user_decorator(func) -> Callable:
+    """
+    Decorator to get UserModel object instance in function
+
+    Args:
+        func (Callable):
+
+    Returns:
+        UserModel | None: Decorated function with UserModel object instance
+        if user with user id exists else decorated function with None
+    """
+
+    @functools.wraps(func)
+    async def wrapped(*args, **kwargs):
+        user_id = args[0].from_user.id
+
+        user = await get_user(user_id)
+        return await func(*args, user, **kwargs)
+
+    return wrapped
 
 
 async def get_user_debt(account_number: int) -> DebtModel:
+    """
+    Get user's debt information
+
+    Args:
+        account_number (int):
+
+    Returns:
+        DebtModel: user's debt object
+    """
     df = pd.read_excel(
         DATA_PATH,
         sheet_name=SHEETS["main_info"]["name"],
@@ -376,22 +470,124 @@ async def get_user_debt(account_number: int) -> DebtModel:
     )
 
 
-def get_user_decorator(func) -> Callable:
+async def set_user_payment_reminder_dates(
+        user_id: int,
+        first_date: int,
+        second_date: int | None = None
+) -> bool:
     """
-    Decorator to get UserModel object instance in function
+    Set reminders to notify user to make payment
 
     Args:
-        func (Callable):
+        user_id (int):
+        first_date (int):
+        second_date (int):
 
     Returns:
-        UserModel | None: Decorated function with UserModel object instance
-        if user with user id exists else decorated function with None
+        bool: True if reminders were set successfully, otherwise False
     """
-    @functools.wraps(func)
-    async def wrapped(*args, **kwargs):
-        user_id = args[0].from_user.id
+    try:
+        df = pd.read_excel(
+            DATABASE_PATH,
+            sheet_name=SHEETS["users"]["name"],
+            engine="openpyxl"
+        )
+    except Exception:
+        log.exception(f"Error while setting payment reminder dates for user with [{user_id}]")
 
-        user = await get_user(user_id)
-        return await func(*args, user, **kwargs)
+        return False
 
-    return wrapped
+    user = await get_user(user_id)
+
+    if user is None:
+        return False
+
+    df.loc[df[SHEETS["users"]["columns"]["A"]] == 705867065] = \
+        [
+            user.user_id,
+            user.phone_number,
+            user.account_number,
+            user.flat_number,
+            user.full_name,
+            first_date,
+            second_date,
+            user.rem_send_meters
+        ]
+
+    with pd.ExcelWriter(DATABASE_PATH) as writer:
+        df.to_excel(writer, SHEETS["users"]["name"], index=False)
+
+    return True
+
+
+async def set_user_remind_send_meters(user_id: int) -> bool:
+    """
+    Set reminder to notify user to send meters
+
+    Args:
+        user_id (int):
+
+    Returns:
+        bool: True if reminder was successfully set, otherwise False
+    """
+    try:
+        df = pd.read_excel(
+            DATABASE_PATH,
+            sheet_name=SHEETS["users"]["name"],
+            engine="openpyxl"
+        )
+    except Exception:
+        log.exception(f"Error while setting payment reminder dates for user with [{user_id=}]")
+
+        return False
+
+    user = await get_user(user_id)
+
+    if user is None:
+        return False
+
+    df.loc[df[SHEETS["users"]["columns"]["A"]] == 705867065] = \
+        [
+            user.user_id,
+            user.phone_number,
+            user.account_number,
+            user.flat_number,
+            user.full_name,
+            user.pay_rem_first_date,
+            user.pay_rem_second_date,
+            not user.rem_send_meters
+        ]
+
+    with pd.ExcelWriter(DATABASE_PATH) as writer:
+        df.to_excel(writer, SHEETS["users"]["name"], index=False)
+
+    return True
+
+
+async def get_specialist_price_list(specialist_id: str) -> Generator[ServiceModel, Any, Any] | None:
+    """
+    Get price list for particular specialist
+
+    Args:
+        specialist_id (str): unique specialist's id
+
+    Returns:
+        Generator[ServiceModel, Any, Any] | None: list with prices for services for particular specialist
+    """
+    try:
+        df = pd.read_excel(
+            PRICE_LIST_PATH,
+            sheet_name=SHEETS[specialist_id]["name"],
+            engine="openpyxl"
+        )
+    except Exception:
+        log.exception(f"Error while loading price list for specialist with id [{specialist_id}]")
+
+        return None
+
+    if df.empty:
+        return None
+
+    price_list = (ServiceModel(*service.values()) for service in df.to_dict(orient="records"))
+
+    return price_list

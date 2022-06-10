@@ -1,9 +1,9 @@
+""" User verification states """
 from aiogram.dispatcher.filters.state import StatesGroup, State
 
 
-class ContactForm(StatesGroup):
+class UserVerification(StatesGroup):
     flatNumber = State()
     phoneNumber = State()
+    accountNumber = State()
     fullName = State()
-    text = State()
-    image = State()

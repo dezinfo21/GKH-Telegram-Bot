@@ -8,9 +8,8 @@ strings = get_strings_sync(module="buttons")
 main_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(strings["main_menu"])
+            KeyboardButton(text=strings["main_menu"])
         ]
     ],
-    resize_keyboard=True,
-    one_time_keyboard=True
+    resize_keyboard=True
 )

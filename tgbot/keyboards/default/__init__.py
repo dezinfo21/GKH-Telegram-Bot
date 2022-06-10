@@ -4,3 +4,4 @@ from .not_verified_user_menu import not_verified_user_kb
 from .verified_user_menu import verified_user_kb
 from .contacts_menu import contacts_kb
 from .bids_menu import bids_kb
+from .debt_menu import debt_kb

@@ -29,7 +29,7 @@ class FlatNumberValidator(AbstractValidator):
 strings = get_strings_sync(module="valid_formats")
 
 flat_number_validator = FlatNumberValidator(
-    min_value=0,
-    max_value=10000,
+    min_value=1,
+    max_value=78,
     format_=strings["flat_number"]
 )

@@ -9,8 +9,8 @@ from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from tgbot import middlewares, filters, handlers
 from tgbot.data.config import load_config
 from tgbot.utils import language
-
 from tgbot.utils.misc import on_startup, on_shutdown
+from tgbot.services import scheduler
 
 config = load_config(".env")
 log = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ async def main():
     log.info("Starting bot...")
 
     language.setup()
+    scheduler.setup()
 
     storage = RedisStorage2() if config.tg_bot.use_redis else MemoryStorage()
     bot = Bot(token=config.tg_bot.token, parse_mode='HTML')

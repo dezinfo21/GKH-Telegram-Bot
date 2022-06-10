@@ -11,6 +11,5 @@ back_kb = ReplyKeyboardMarkup(
             KeyboardButton(strings.get_strings(mas_name_="STRINGS", module_="buttons")["back"])
         ]
     ],
-    resize_keyboard=True,
-    one_time_keyboard=True
+    resize_keyboard=True
 )

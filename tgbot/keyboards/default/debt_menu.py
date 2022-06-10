@@ -1,17 +1,16 @@
-""" Contacts keyboard """
+""" Debt keyboard """
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 from tgbot.utils.language import get_strings_sync
 
 strings = get_strings_sync(module="buttons")
 
-contacts_kb = ReplyKeyboardMarkup(
+
+debt_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(strings["emergency_contacts"])
-        ],
-        [
-            KeyboardButton(strings["support"])
+            KeyboardButton(strings["pay_debt"]),
+            KeyboardButton(strings["remind_payment"])
         ],
         [
             KeyboardButton(strings["main_menu"])
@@ -19,3 +18,4 @@ contacts_kb = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
+

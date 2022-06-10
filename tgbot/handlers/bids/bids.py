@@ -8,7 +8,7 @@ from aiogram.types import Message
 from aiogram.utils.markdown import html_decoration as mrd
 
 from tgbot.keyboards.default import bids_kb
-from tgbot.states import Menus, Bid
+from tgbot.states import Menus, AddBid
 from tgbot.utils.language import get_strings_decorator, Strings, get_strings_sync
 
 
@@ -45,7 +45,14 @@ def register_add_bid(dp: Dispatcher) -> NoReturn:
 
     dp.register_message_handler(
         add_bid,
-        Text(equals=[strings["add_bid"], strings["back"]]),
+        Text(equals=strings["add_bid"]),
         verified_only=True,
-        state=[Menus.verifiedUserMenu, Bid],
+        state=Menus.verifiedUserMenu,
+    )
+
+    dp.register_message_handler(
+        add_bid,
+        Text(equals=strings["back"]),
+        verified_only=True,
+        state=[AddBid, Menus.specialistsMenu],
     )

@@ -20,6 +20,7 @@ class TgBot:
     admin_ids: list[int]
     prod: bool
     use_redis: bool
+    timezone: str
 
 
 @dataclass
@@ -46,6 +47,14 @@ class Miscellaneous:
     default_lang: str
     basic_log_format: str
     standard_log_format: str
+
+    remind_time_hours: int
+    remind_time_minutes: int
+
+    default_pay_rem_first_date: int
+    default_pay_rem_second_date: int
+
+    default_send_meters_rem_date: int
 
 
 @dataclass
@@ -82,6 +91,7 @@ def load_config(path: str = None) -> NoReturn:
             admin_ids=list(map(int, env.list("ADMINS"))),
             prod=env.bool("PRODUCTION"),
             use_redis=env.bool("USE_REDIS"),
+            timezone=env.str("TIMEZONE")
         ),
         channels=Channels(
             support=env.int("SUPPORT_CHANNEL_ID")
@@ -89,6 +99,14 @@ def load_config(path: str = None) -> NoReturn:
         misc=Miscellaneous(
             default_lang=env.str("DEFAULT_LANG"),
             basic_log_format=env.str("BASIC_LOG_FORMAT"),
-            standard_log_format=env.str("STANDARD_LOG_FORMAT")
+            standard_log_format=env.str("STANDARD_LOG_FORMAT"),
+
+            remind_time_hours=env.int("REMIND_TIME_HOURS"),
+            remind_time_minutes=env.int("REMIND_TIME_MINUTES"),
+
+            default_pay_rem_first_date=env.int("DEFAULT_PAYMENT_REMINDER_FIRST_DATE"),
+            default_pay_rem_second_date=env.int("DEFAULT_PAYMENT_REMINDER_SECOND_DATE"),
+
+            default_send_meters_rem_date=env.int("DEFAULT_SEND_METERS_REMINDER_DATE"),
         )
     )

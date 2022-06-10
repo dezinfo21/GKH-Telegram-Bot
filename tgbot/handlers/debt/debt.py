@@ -2,9 +2,11 @@
 from typing import NoReturn
 
 from aiogram import Dispatcher
+from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.types import Message
 
+from tgbot.keyboards.default import debt_kb
 from tgbot.services import database
 from tgbot.services.database import get_user_decorator
 from tgbot.states import Menus
@@ -13,7 +15,7 @@ from tgbot.utils.language import get_strings_sync, get_strings_decorator, String
 
 @get_user_decorator
 @get_strings_decorator(module="debt")
-async def get_debt(message: Message, user: database.UserModel, strings: Strings):
+async def get_debt(message: Message, user: database.UserModel, strings: Strings, state: FSMContext):
     """
     Message handler to get user's debt
 
@@ -21,6 +23,7 @@ async def get_debt(message: Message, user: database.UserModel, strings: Strings)
         message (aiogram.types.Message):
         user (tgbot.services.database.UserModel):
         strings (tgbot.utils.language.Strings):
+        state (aiogram.dispatcher.FSMContext):
     """
     debt = await database.get_user_debt(user.account_number)
 
@@ -39,7 +42,10 @@ async def get_debt(message: Message, user: database.UserModel, strings: Strings)
             last_payment_date=debt.last_payment_date
         )
 
-    await message.answer(caption)
+    await message.answer(caption, reply_markup=debt_kb)
+
+    await state.finish()
+    await state.set_state(Menus.debtMenu)
 
 
 def register_debt(dp: Dispatcher) -> NoReturn:
@@ -58,4 +64,10 @@ def register_debt(dp: Dispatcher) -> NoReturn:
         get_debt,
         Text(equals=strings["get_debt"]),
         state=Menus.verifiedUserMenu
+    )
+
+    dp.register_message_handler(
+        get_debt,
+        Text(equals=strings["back"]),
+        state=Menus.paymentRemindersMenu
     )

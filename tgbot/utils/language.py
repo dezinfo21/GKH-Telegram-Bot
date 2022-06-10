@@ -185,7 +185,7 @@ def get_strings_decorator(module: str, mas_name: str = "STRINGS") -> Callable:
 
 def setup() -> NoReturn:
     """
-    Setup localization
+    Configure localization
 
     Returns:
         NoReturn
